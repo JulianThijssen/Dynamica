@@ -1,8 +1,10 @@
 #include "ProjectiveDynamics.h"
 
+//#include <Eigen/Triplet>
+
 void Simulation::init()
 {
-    state.n = 2;
+    state.n = 3;
     state.dim = 3;
 
     state.q.resize(state.n * state.dim, 1);
@@ -22,7 +24,11 @@ void Simulation::init()
     }
 
     state.q(0, 0) = -1.0f;
-    state.q(3, 0) = 1.0f;
+    state.q(1, 0) = 1.0f;
+    state.q(3, 0) = 0.0f;
+    state.q(4, 0) = 0.0f;
+    state.q(6, 0) = 1.0f;
+    state.q(7, 0) = 1.0f;
 
     state.M.resize(state.n * state.dim, state.n * state.dim);
     state.M.setIdentity();
@@ -31,7 +37,8 @@ void Simulation::init()
 
     //qn1 = sn;
 
-    constraints.push_back(Constraint{ 0, 1, 1.0f });
+    constraints.push_back(Constraint{ 0, 1, 0.5f });
+    constraints.push_back(Constraint{ 1, 2, 0.5f });
 
     // Create cholesky decomposed Y matrix
     FMatrix Y;
@@ -41,15 +48,23 @@ void Simulation::init()
     {
         Constraint& c = constraints[i];
 
-        Eigen::SparseMatrix<float> S_i;
-        Eigen::SparseMatrix<float> A_i;
-        float w_i;
+        std::vector<Eigen::Triplet<float, int>> triplets;
+        triplets.push_back(Eigen::Triplet<float, int>(0, c.i0 * 3 + 0, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(1, c.i0 * 3 + 1, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(2, c.i0 * 3 + 2, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(3, c.i1 * 3 + 0, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(4, c.i1 * 3 + 1, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(5, c.i1 * 3 + 2, 1));
 
-        w_i = 1;
+        Eigen::SparseMatrix<float> S_i;
+        S_i.resize(6, state.n * state.dim);
+        S_i.setFromTriplets(triplets.begin(), triplets.end());
+
+        float w_i = 1;
+
+        Eigen::SparseMatrix<float> A_i;
         A_i.resize(6, 6);
         A_i.setIdentity();
-        S_i.resize(6, 6);
-        S_i.setIdentity();
 
         Eigen::SparseMatrix<float> S_iT = S_i.transpose();
         Eigen::SparseMatrix<float> A_iT = A_i.transpose();
@@ -61,6 +76,48 @@ void Simulation::init()
         Y += w_i * S_i;
     }
     lltM.compute(Y);
+
+    // Create right hand matrices
+    for (int i = 0; i < constraints.size(); i++)
+    {
+        Constraint& c = constraints[i];
+
+        std::vector<Eigen::Triplet<float, int>> triplets;
+        triplets.push_back(Eigen::Triplet<float, int>(0, c.i0 * 3 + 0, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(1, c.i0 * 3 + 1, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(2, c.i0 * 3 + 2, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(3, c.i1 * 3 + 0, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(4, c.i1 * 3 + 1, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(5, c.i1 * 3 + 2, 1));
+
+        // Selector matrix 6x3n
+        Eigen::SparseMatrix<float> S_i;
+        S_i.resize(6, state.n * state.dim);
+        S_i.setFromTriplets(triplets.begin(), triplets.end());
+
+        // [6 x 6]
+        Eigen::SparseMatrix<float> A_i;
+        A_i.resize(6, 6);
+        A_i.setIdentity();
+
+        Eigen::SparseMatrix<float> B_i;
+        B_i.resize(6, 6);
+        B_i.setIdentity();
+
+        // [3n x 6]
+        Eigen::SparseMatrix<float> S_iT = S_i.transpose();
+        // Check: Transpose here or not?
+        Eigen::SparseMatrix<float> A_iT = A_i.transpose();
+
+        // [3n x 6] * [6 x 6] = [3n x 6]
+        S_iT.applyThisOnTheLeft(A_iT);
+        // [3n x 6] * [6 x 6] = [3n x 6]
+        A_iT.applyThisOnTheLeft(B_i);
+
+        float w_i = 1;
+
+        c.RHM = w_i * B_i;
+    }
 }
 
 void Simulation::update()
@@ -115,7 +172,10 @@ void Simulation::update()
             //    constraintEnergy += (state.q.row(i) - state.p.row(i)).squaredNorm() + 0;
             //}
 
-            b.block<6, 1>(0, 0) += state.p;
+            // [3n x 6] * [6 x 1] = [3n x 1]
+            c.RHM.applyThisOnTheLeft(state.p);
+
+            b += state.p;
         }
         // Solve linear system (s_n, p_1, p_2, p_3, ...)
 

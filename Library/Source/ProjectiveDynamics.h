@@ -36,6 +36,9 @@ public:
     int i0;
     int i1;
     float restLength;
+
+    // [3n x 6]
+    Eigen::SparseMatrix<float> RHM;
 };
 
 class Simulation
@@ -48,7 +51,7 @@ public:
     State state;
 
 private:
-    FMatrix S;
+    //FMatrix S;
     FMatrix sn;
     FMatrix qn1;
     FMatrix vn1;

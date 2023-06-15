@@ -59,7 +59,7 @@ int main()
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, simulation.state.n * simulation.state.dim * sizeof(float), simulation.state.q.data(), GL_STATIC_DRAW);
 
-        glDrawArrays(GL_LINES, 0, 2);
+        glDrawArrays(GL_LINE_STRIP, 0, simulation.state.n);
 
         window.update();
     }
