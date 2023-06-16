@@ -11,9 +11,11 @@ source_group(Application FILES ${APPLICATION_SOURCES})
 # FIXME, Replace by consuming public headers from Library
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/Library/Source)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/Library/ThirdParty/Eigen/include)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/Application/ThirdParty/Assimp/include)
 target_include_directories(${PROJECT_NAME} PRIVATE ThirdParty/GDT/include)
 
 target_link_libraries(${PROJECT_NAME} LINK_PUBLIC ${PROJECT_NAME}_lib)
+target_link_libraries(${PROJECT_NAME} LINK_PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Assimp/lib/Release/assimp.lib")
 target_link_libraries(${PROJECT_NAME} LINK_PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/GDT/lib/glfw3.lib")
 target_link_libraries(${PROJECT_NAME} LINK_PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/GDT/lib/$<CONFIG>/GDT.lib")
 

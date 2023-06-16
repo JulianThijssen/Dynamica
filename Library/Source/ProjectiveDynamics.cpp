@@ -4,10 +4,9 @@
 
 void Simulation::init()
 {
-    state.n = 3;
+    state.n = state.q.rows()/3;
     state.dim = 3;
 
-    state.q.resize(state.n * state.dim, 1);
     state.v.resize(state.n * state.dim, 1);
     state.p.resize(2 * state.dim, 1);
     state.fint.resize(state.n * state.dim, 1);
@@ -17,28 +16,15 @@ void Simulation::init()
 
     for (int i = 0; i < state.n * state.dim; i++)
     {
-        state.q(i, 0) = 0;
         state.v(i, 0) = 0;
         state.fint(i, 0) = 0;
         state.fext(i, 0) = 0;
     }
 
-    state.q(0, 0) = -1.0f;
-    state.q(1, 0) = 1.0f;
-    state.q(3, 0) = 0.0f;
-    state.q(4, 0) = 0.0f;
-    state.q(6, 0) = 1.0f;
-    state.q(7, 0) = 1.0f;
-
     state.M.resize(state.n * state.dim, state.n * state.dim);
     state.M.setIdentity();
     state.Minv.resize(state.n * state.dim, state.n * state.dim);
     state.Minv.setIdentity();
-
-    //qn1 = sn;
-
-    constraints.push_back(Constraint{ 0, 1, 0.5f });
-    constraints.push_back(Constraint{ 1, 2, 0.5f });
 
     // Create cholesky decomposed Y matrix
     FMatrix Y;
@@ -125,26 +111,11 @@ void Simulation::update()
     // Simulation
     inertia = state.q + state.v * dt;
 
-    //state.fint = 0;
-    //for (int i = 0; i < state.n; i++)
-    //{
-        // Gradients of 
-        //fint += Grad_q(Wi(q));
-        // Wi(q) : function from state to non-negative scalar, which is the energy due to i-th constraint
-    //}
-
     sn = inertia + (dt * dt) * (state.Minv) * state.fext;
     qn1 = sn;
 
     Eigen::SparseMatrix<float> coeff = state.M / (dt * dt);
     coeff.applyThisOnTheLeft(sn);
-
-    // Compute next state
-    //float vn = state.v(i, d) + dt * state.Minv(i, i) * (state.fint + state.fext(d));
-    //float qn = state.q(i, d) + vn * dt;
-
-    // Local step
-    // argmin(p_i) = sum_i [ || A_i S_i q - B_i p_i ||^2 + I_c_i(p_i) ]
 
     for (int i = 0; i < numIterations; i++)
     {
@@ -163,14 +134,9 @@ void Simulation::update()
             float dlen = len - restLength;
             FMatrix displacement = (0.5 * dlen) * (dir / len);
 
+            state.p.resize(6, 1);
             state.p.block<3, 1>(0, 0) = v0 + displacement;
             state.p.block<3, 1>(3, 0) = v1 - displacement;
-
-            //float constraintEnergy = 0;
-            //for (int i = 0; i < 1; i++)
-            //{
-            //    constraintEnergy += (state.q.row(i) - state.p.row(i)).squaredNorm() + 0;
-            //}
 
             // [3n x 6] * [6 x 1] = [3n x 1]
             c.RHM.applyThisOnTheLeft(state.p);
@@ -179,12 +145,6 @@ void Simulation::update()
         }
         // Solve linear system (s_n, p_1, p_2, p_3, ...)
 
-            // Global step
-        //1.0f / (dt * dt) * M;
-        //for (int i = 0; i < 1; i++)
-        //{
-        //            
-        //}
         qn1 = lltM.solve(b);
     }
 

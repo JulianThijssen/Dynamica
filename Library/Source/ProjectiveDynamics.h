@@ -50,6 +50,8 @@ public:
 
     State state;
 
+    std::vector<Constraint> constraints;
+
 private:
     //FMatrix S;
     FMatrix sn;
@@ -60,9 +62,7 @@ private:
 
     Eigen::LLT<FMatrix> lltM;
 
-    int numIterations = 1;
-
-    std::vector<Constraint> constraints;
+    int numIterations = 10;
 
     double t = 0;
     const double dt = 0.016;
