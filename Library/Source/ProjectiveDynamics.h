@@ -30,15 +30,75 @@ public:
     FMatrix fext;
 };
 
+enum class ConstraintType
+{
+    SPRING, TETRAHEDRON
+};
+
 class Constraint
 {
 public:
-    int i0;
-    int i1;
-    float restLength;
+    Constraint(ConstraintType type) :
+        _type(type)
+    {}
+
+    ConstraintType getType() const
+    {
+        return _type;
+    }
+
+    Eigen::SparseMatrix<float>& getRHM()
+    {
+        return RHM;
+    }
+
+    const Eigen::SparseMatrix<float>& getRHM() const
+    {
+        return RHM;
+    }
+
+protected:
+    ConstraintType _type;
 
     // [3n x 6]
     Eigen::SparseMatrix<float> RHM;
+};
+
+class SpringConstraint : public Constraint
+{
+public:
+    SpringConstraint(int i0a, int i1a, float restLengtha) :
+        Constraint(ConstraintType::SPRING),
+        i0(i0a),
+        i1(i1a),
+        restLength(restLengtha)
+    {
+
+    }
+
+    int i0;
+    int i1;
+
+    float restLength;
+};
+
+class TetConstraint : public Constraint
+{
+public:
+    TetConstraint(int i0a, int i1a, int i2a, int i3a) :
+        Constraint(ConstraintType::TETRAHEDRON),
+        i0(i0a),
+        i1(i1a),
+        i2(i2a),
+        i3(i3a)
+    {
+
+    }
+
+    int i0;
+    int i1;
+    int i2;
+    int i3;
 };
 
 class Simulation
@@ -50,7 +110,7 @@ public:
 
     State state;
 
-    std::vector<Constraint> constraints;
+    std::vector<Constraint*> constraints;
 
 private:
     //FMatrix S;

@@ -2,6 +2,58 @@
 
 //#include <Eigen/Triplet>
 
+Eigen::SparseMatrix<float> CreateSelectorMatrix(const Constraint* c, const State& state)
+{
+    Eigen::SparseMatrix<float> S_i;
+    std::vector<Eigen::Triplet<float, int>> triplets;
+
+    // Selector matrix 6x3n
+    if (c->getType() == ConstraintType::SPRING)
+    {
+        const SpringConstraint* sc = static_cast<const SpringConstraint*>(c);
+        triplets.push_back(Eigen::Triplet<float, int>(0, sc->i0 * 3 + 0, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(1, sc->i0 * 3 + 1, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(2, sc->i0 * 3 + 2, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(3, sc->i1 * 3 + 0, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(4, sc->i1 * 3 + 1, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(5, sc->i1 * 3 + 2, 1));
+
+        S_i.resize(6, state.n * state.dim);
+        S_i.setFromTriplets(triplets.begin(), triplets.end());
+    }
+    // Selector matrix 12x3n
+    if (c->getType() == ConstraintType::TETRAHEDRON)
+    {
+        const TetConstraint* tc = static_cast<const TetConstraint*>(c);
+        triplets.push_back(Eigen::Triplet<float, int>(0, tc->i0 * 3 + 0, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(1, tc->i0 * 3 + 1, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(2, tc->i0 * 3 + 2, 1));
+
+        triplets.push_back(Eigen::Triplet<float, int>(3, tc->i1 * 3 + 0, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(4, tc->i1 * 3 + 1, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(5, tc->i1 * 3 + 2, 1));
+
+        triplets.push_back(Eigen::Triplet<float, int>(6, tc->i2 * 3 + 0, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(7, tc->i2 * 3 + 1, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(8, tc->i2 * 3 + 2, 1));
+
+        triplets.push_back(Eigen::Triplet<float, int>(9, tc->i3 * 3 + 0, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(10, tc->i3 * 3 + 1, 1));
+        triplets.push_back(Eigen::Triplet<float, int>(11, tc->i3 * 3 + 2, 1));
+
+        S_i.resize(12, state.n * state.dim);
+        S_i.setFromTriplets(triplets.begin(), triplets.end());
+    }
+
+    return S_i;
+}
+
+Eigen::SparseMatrix<float> springA;
+Eigen::SparseMatrix<float> springB;
+
+Eigen::SparseMatrix<float> tetA;
+Eigen::SparseMatrix<float> tetB;
+
 void Simulation::init()
 {
     state.n = state.q.rows()/3;
@@ -26,31 +78,75 @@ void Simulation::init()
     state.Minv.resize(state.n * state.dim, state.n * state.dim);
     state.Minv.setIdentity();
 
+    // Set up A and B matrices
+    {
+        std::vector<Eigen::Triplet<float, int>> triplets;
+
+        triplets.push_back(Eigen::Triplet<float, int>(0, 0, 0.5));
+        triplets.push_back(Eigen::Triplet<float, int>(1, 1, 0.5));
+        triplets.push_back(Eigen::Triplet<float, int>(2, 2, 0.5));
+
+        triplets.push_back(Eigen::Triplet<float, int>(0, 3, -0.5));
+        triplets.push_back(Eigen::Triplet<float, int>(1, 4, -0.5));
+        triplets.push_back(Eigen::Triplet<float, int>(2, 5, -0.5));
+
+        triplets.push_back(Eigen::Triplet<float, int>(3, 0, -0.5));
+        triplets.push_back(Eigen::Triplet<float, int>(4, 1, -0.5));
+        triplets.push_back(Eigen::Triplet<float, int>(5, 2, -0.5));
+
+        triplets.push_back(Eigen::Triplet<float, int>(3, 3, 0.5));
+        triplets.push_back(Eigen::Triplet<float, int>(4, 4, 0.5));
+        triplets.push_back(Eigen::Triplet<float, int>(5, 5, 0.5));
+
+        springA.resize(6, 6);
+        springA.setFromTriplets(triplets.begin(), triplets.end());
+
+        springB = springA;
+    }
+
+    {
+        std::vector<Eigen::Triplet<float, int>> triplets;
+
+        float v0 = 2.0f / 3.0f;
+        float v1 = -2.0f / 3.0f;
+
+        for (int k = 0; k < 3; k++)
+        {
+            for (int i = 0; i < 12; i++)
+            {
+                int j = (k * 4) + (i % 4);
+                float v = i == j ? v0 : v1;
+                triplets.push_back(Eigen::Triplet<float, int>(i, j, v));
+            }
+        }
+
+        tetA.resize(12, 12);
+        tetA.setFromTriplets(triplets.begin(), triplets.end());
+
+        tetB = tetA;
+    }
+
     // Create cholesky decomposed Y matrix
     FMatrix Y;
     Y = state.M / (dt * dt);
 
     for (int i = 0; i < constraints.size(); i++)
     {
-        Constraint& c = constraints[i];
+        Constraint* c = constraints[i];
 
-        std::vector<Eigen::Triplet<float, int>> triplets;
-        triplets.push_back(Eigen::Triplet<float, int>(0, c.i0 * 3 + 0, 1));
-        triplets.push_back(Eigen::Triplet<float, int>(1, c.i0 * 3 + 1, 1));
-        triplets.push_back(Eigen::Triplet<float, int>(2, c.i0 * 3 + 2, 1));
-        triplets.push_back(Eigen::Triplet<float, int>(3, c.i1 * 3 + 0, 1));
-        triplets.push_back(Eigen::Triplet<float, int>(4, c.i1 * 3 + 1, 1));
-        triplets.push_back(Eigen::Triplet<float, int>(5, c.i1 * 3 + 2, 1));
-
-        Eigen::SparseMatrix<float> S_i;
-        S_i.resize(6, state.n * state.dim);
-        S_i.setFromTriplets(triplets.begin(), triplets.end());
+        Eigen::SparseMatrix<float> S_i = CreateSelectorMatrix(c, state);
+        Eigen::SparseMatrix<float> A_i;
 
         float w_i = 1;
 
-        Eigen::SparseMatrix<float> A_i;
-        A_i.resize(6, 6);
-        A_i.setIdentity();
+        if (c->getType() == ConstraintType::SPRING)
+        {
+            A_i = springA;
+        }
+        if (c->getType() == ConstraintType::TETRAHEDRON)
+        {
+            A_i = tetA;
+        }
 
         Eigen::SparseMatrix<float> S_iT = S_i.transpose();
         Eigen::SparseMatrix<float> A_iT = A_i.transpose();
@@ -66,29 +162,22 @@ void Simulation::init()
     // Create right hand matrices
     for (int i = 0; i < constraints.size(); i++)
     {
-        Constraint& c = constraints[i];
+        Constraint* c = constraints[i];
 
-        std::vector<Eigen::Triplet<float, int>> triplets;
-        triplets.push_back(Eigen::Triplet<float, int>(0, c.i0 * 3 + 0, 1));
-        triplets.push_back(Eigen::Triplet<float, int>(1, c.i0 * 3 + 1, 1));
-        triplets.push_back(Eigen::Triplet<float, int>(2, c.i0 * 3 + 2, 1));
-        triplets.push_back(Eigen::Triplet<float, int>(3, c.i1 * 3 + 0, 1));
-        triplets.push_back(Eigen::Triplet<float, int>(4, c.i1 * 3 + 1, 1));
-        triplets.push_back(Eigen::Triplet<float, int>(5, c.i1 * 3 + 2, 1));
-
-        // Selector matrix 6x3n
-        Eigen::SparseMatrix<float> S_i;
-        S_i.resize(6, state.n * state.dim);
-        S_i.setFromTriplets(triplets.begin(), triplets.end());
-
-        // [6 x 6]
+        Eigen::SparseMatrix<float> S_i = CreateSelectorMatrix(c, state);
         Eigen::SparseMatrix<float> A_i;
-        A_i.resize(6, 6);
-        A_i.setIdentity();
-
         Eigen::SparseMatrix<float> B_i;
-        B_i.resize(6, 6);
-        B_i.setIdentity();
+
+        if (c->getType() == ConstraintType::SPRING)
+        {
+            A_i = springA;
+            B_i = springB;
+        }
+        if (c->getType() == ConstraintType::TETRAHEDRON)
+        {
+            A_i = tetA;
+            B_i = tetB;
+        }
 
         // [3n x 6]
         Eigen::SparseMatrix<float> S_iT = S_i.transpose();
@@ -102,7 +191,7 @@ void Simulation::init()
 
         float w_i = 1;
 
-        c.RHM = w_i * B_i;
+        c->getRHM() = w_i * B_i;
     }
 }
 
@@ -122,24 +211,28 @@ void Simulation::update()
         FMatrix b = sn;
 
         // Loop over all constraints
-        for (Constraint& c : constraints)
+        for (const Constraint* c : constraints)
         {
-            // Project on constraint set (C_i, qn+1)
-            FMatrix v0 = qn1.block<3, 1>(c.i0*3, 0);
-            FMatrix v1 = qn1.block<3, 1>(c.i1*3, 0);
+            if (c->getType() == ConstraintType::SPRING)
+            {
+                const SpringConstraint* sc = static_cast<const SpringConstraint*>(c);
+                // Project on constraint set (C_i, qn+1)
+                FMatrix v0 = qn1.block<3, 1>(sc->i0 * 3, 0);
+                FMatrix v1 = qn1.block<3, 1>(sc->i1 * 3, 0);
 
-            FMatrix dir = v1 - v0;
-            float restLength = c.restLength;
-            double len = dir.norm();
-            float dlen = len - restLength;
-            FMatrix displacement = (0.5 * dlen) * (dir / len);
+                FMatrix dir = v1 - v0;
+                float restLength = sc->restLength;
+                double len = dir.norm();
+                float dlen = len - restLength;
+                FMatrix displacement = (0.5 * dlen) * (dir / len);
 
-            state.p.resize(6, 1);
-            state.p.block<3, 1>(0, 0) = v0 + displacement;
-            state.p.block<3, 1>(3, 0) = v1 - displacement;
+                state.p.resize(6, 1);
+                state.p.block<3, 1>(0, 0) = v0 + displacement;
+                state.p.block<3, 1>(3, 0) = v1 - displacement;
+            }
 
             // [3n x 6] * [6 x 1] = [3n x 1]
-            c.RHM.applyThisOnTheLeft(state.p);
+            c->getRHM().applyThisOnTheLeft(state.p);
 
             b += state.p;
         }

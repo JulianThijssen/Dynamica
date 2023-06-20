@@ -93,9 +93,9 @@ int main()
         for (int j = 0; j < faces.size(); j++)
         {
             Face& face = faces[j];
-            simulation.constraints.push_back(Constraint{ (int)face.i0, (int)face.i1, 0.3f });
-            simulation.constraints.push_back(Constraint{ (int)face.i1, (int)face.i2, 0.3f });
-            simulation.constraints.push_back(Constraint{ (int)face.i2, (int)face.i0, 0.3f });
+            simulation.constraints.push_back(new SpringConstraint((int)face.i0, (int)face.i1, 0.3f));
+            simulation.constraints.push_back(new SpringConstraint((int)face.i1, (int)face.i2, 0.3f));
+            simulation.constraints.push_back(new SpringConstraint((int)face.i2, (int)face.i0, 0.3f));
 
             indices.push_back(face.i0);
             indices.push_back(face.i1);
