@@ -59,18 +59,20 @@ int main()
     {
         const aiMesh* aiMesh = aiScene->mMeshes[i];
 
-        std::vector<Vector3f> vertices(aiMesh->mNumVertices);
+        std::vector<Vector3f> vertices(aiMesh->mNumVertices+1);
         std::vector<Vector3f> normals(aiMesh->mNumVertices);
 
         std::vector<Face> faces(aiMesh->mNumFaces);
 
         std::cout << aiMesh->mNumVertices << " " << aiMesh->mNumFaces << std::endl;
-
+        
         for (int j = 0; j < aiMesh->mNumVertices; j++)
         {
             vertices[j] = Vector3f(aiMesh->mVertices[j].x, aiMesh->mVertices[j].y, aiMesh->mVertices[j].z);
             //normals[j] = Vector3f(aiMesh->mNormals[j].x, aiMesh->mNormals[j].y, aiMesh->mNormals[j].z);
         }
+        vertices[aiMesh->mNumVertices] = Vector3f(0, 0, 0);
+
         for (int j = 0; j < aiMesh->mNumFaces; j++)
         {
             const aiFace& aiFace = aiMesh->mFaces[j];
@@ -93,9 +95,11 @@ int main()
         for (int j = 0; j < faces.size(); j++)
         {
             Face& face = faces[j];
-            simulation.constraints.push_back(new SpringConstraint((int)face.i0, (int)face.i1, 0.3f));
-            simulation.constraints.push_back(new SpringConstraint((int)face.i1, (int)face.i2, 0.3f));
-            simulation.constraints.push_back(new SpringConstraint((int)face.i2, (int)face.i0, 0.3f));
+            //simulation.constraints.push_back(new SpringConstraint((int)face.i0, (int)face.i1, 0.3f));
+            //simulation.constraints.push_back(new SpringConstraint((int)face.i1, (int)face.i2, 0.3f));
+            //simulation.constraints.push_back(new SpringConstraint((int)face.i2, (int)face.i0, 0.3f));
+            std::cout << "Face: " << face.i0 << " " << face.i1 << " " << face.i2 << std::endl;
+            simulation.constraints.push_back(new TetConstraint(face.i0, face.i1, face.i2, aiMesh->mNumVertices, simulation.state.q));
 
             indices.push_back(face.i0);
             indices.push_back(face.i1);
@@ -103,6 +107,13 @@ int main()
             indices.push_back(face.i2);
             indices.push_back(face.i2);
             indices.push_back(face.i0);
+
+            indices.push_back(face.i0);
+            indices.push_back(aiMesh->mNumVertices);
+            indices.push_back(face.i1);
+            indices.push_back(aiMesh->mNumVertices);
+            indices.push_back(face.i2);
+            indices.push_back(aiMesh->mNumVertices);
         }
     }
 

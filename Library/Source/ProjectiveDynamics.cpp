@@ -206,6 +206,7 @@ void Simulation::update()
     Eigen::SparseMatrix<float> coeff = state.M / (dt * dt);
     coeff.applyThisOnTheLeft(sn);
 
+    // Local step
     for (int i = 0; i < numIterations; i++)
     {
         FMatrix b = sn;
@@ -217,8 +218,8 @@ void Simulation::update()
             {
                 const SpringConstraint* sc = static_cast<const SpringConstraint*>(c);
                 // Project on constraint set (C_i, qn+1)
-                FMatrix v0 = qn1.block<3, 1>(sc->i0 * 3, 0);
-                FMatrix v1 = qn1.block<3, 1>(sc->i1 * 3, 0);
+                FMatrix v0 = qn1.vector3(sc->i0);
+                FMatrix v1 = qn1.vector3(sc->i1);
 
                 FMatrix dir = v1 - v0;
                 float restLength = sc->restLength;
@@ -227,10 +228,27 @@ void Simulation::update()
                 FMatrix displacement = (0.5 * dlen) * (dir / len);
 
                 state.p.resize(6, 1);
-                state.p.block<3, 1>(0, 0) = v0 + displacement;
-                state.p.block<3, 1>(3, 0) = v1 - displacement;
+                state.p.vector3(0) = v0 + displacement;
+                state.p.vector3(1) = v1 - displacement;
             }
+            else if (c->getType() == ConstraintType::TETRAHEDRON)
+            {
+                const TetConstraint* tc = static_cast<const TetConstraint*>(c);
 
+                FMatrix vertices;
+                vertices.resize(12, 1);
+                vertices.vector3(0) = qn1.vector3(tc->i0);
+                vertices.vector3(1) = qn1.vector3(tc->i1);
+                vertices.vector3(2) = qn1.vector3(tc->i2);
+                vertices.vector3(3) = qn1.vector3(tc->i3);
+
+                FMatrix verticesAfter;
+                verticesAfter.resize(12, 1);
+                tc->computeVolumePreservingVertexPositions(verticesAfter, vertices);
+
+                state.p.resize(12, 1);
+                state.p.block<12, 1>(0, 0) = verticesAfter.block<12, 1>(0, 0);
+            }
             // [3n x 6] * [6 x 1] = [3n x 1]
             c->getRHM().applyThisOnTheLeft(state.p);
 
