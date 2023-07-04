@@ -290,6 +290,8 @@ public:
 
     void update();
 
+    FMatrix collisionDetection(const FMatrix& q);
+
     State state;
 
     std::vector<Constraint*> constraints;

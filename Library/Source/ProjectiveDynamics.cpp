@@ -197,6 +197,12 @@ void Simulation::init()
 
 void Simulation::update()
 {
+    //state.v.vector3(0) += Eigen::Matrix<float, 3, 1>(0, -0.04f, 0);
+    state.fext.setZero();
+    for (unsigned int i = 0; i < state.n; i++)
+        state.fext(i * 3 + 1) += -0.1f;
+    state.fext = state.M * state.fext;
+
     // Simulation
     inertia = state.q + state.v * dt;
 
@@ -264,6 +270,54 @@ void Simulation::update()
     state.q = qn1;
     state.v = vn1;
 
+    FMatrix penetration = collisionDetection(state.q);
+    state.q -= penetration;
+
     // Damping
     state.v *= (1.0 - 0.01);
+}
+
+FMatrix Simulation::collisionDetection(const FMatrix& q)
+{
+    FMatrix penetration;
+    penetration.resize(state.n * state.dim, 1);
+    penetration.setZero();
+    Eigen::Matrix<float, 3, 1> normal;
+    double dist;
+
+    Eigen::Matrix<float, 3, 1> vn, vt, vel;
+
+    float friction = 0.98f;
+    float restitution = 0.4f;
+
+    float floor = -1.5f;
+
+    for (unsigned int i = 0; i < state.n; i++)
+    {
+        Eigen::Matrix<float, 3, 1> xi = q.vector3(i);
+
+        if (xi(1, 0) < floor)
+        {
+            float dist = fabs(xi(1, 0) - floor);
+            normal(0, 0) = 0;
+            normal(1, 0) = -1;
+            normal(2, 0) = 0;
+            penetration.vector3(i) += dist * normal;
+
+            vel = state.v.vector3(i);
+
+            vn = vel.dot(normal) / normal.dot(normal) * normal;
+
+            vt = vel - vn;
+
+            vn = vn * restitution;
+            vt = vt * friction;
+
+            vn = vn * -1.0f;
+
+            state.v.vector3(i) = vn + vt;
+        }
+    }
+
+    return penetration;
 }
