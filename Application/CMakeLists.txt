@@ -1,5 +1,6 @@
 set(APPLICATION_SOURCES
     Source/Application.cpp
+    Source/Scene.h
 )
 
 add_executable(${PROJECT_NAME}
