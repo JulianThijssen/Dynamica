@@ -253,7 +253,7 @@ void Simulation::update()
                 tc->computeVolumePreservingVertexPositions(verticesAfter, vertices);
 
                 state.p.resize(12, 1);
-                state.p.block<12, 1>(0, 0) = verticesAfter.block<12, 1>(0, 0);
+                state.p.vectorX(12, 0) = verticesAfter.vectorX(12, 0);
             }
             // [3n x 6] * [6 x 1] = [3n x 1]
             c->getRHM().applyThisOnTheLeft(state.p);
@@ -282,10 +282,10 @@ FMatrix Simulation::collisionDetection(const FMatrix& q)
     FMatrix penetration;
     penetration.resize(state.n * state.dim, 1);
     penetration.setZero();
-    Eigen::Matrix<float, 3, 1> normal;
+    FVector3 normal;
     double dist;
 
-    Eigen::Matrix<float, 3, 1> vn, vt, vel;
+    FVector3 vn, vt, vel;
 
     float friction = 0.98f;
     float restitution = 0.4f;
@@ -294,7 +294,7 @@ FMatrix Simulation::collisionDetection(const FMatrix& q)
 
     for (unsigned int i = 0; i < state.n; i++)
     {
-        Eigen::Matrix<float, 3, 1> xi = q.vector3(i);
+        FVector3 xi = q.vector3(i);
 
         if (xi(1, 0) < floor)
         {

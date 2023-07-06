@@ -3,6 +3,12 @@ set(LIBRARY_SOURCES
     Source/ProjectiveDynamics.cpp
     Source/NewtonRaphson.h
     Source/NewtonRaphson.cpp
+    Source/Constraint.h
+    Source/SpringConstraint.h
+    Source/SpringConstraint.cpp
+    Source/TetConstraint.h
+    Source/TetConstraint.cpp
+    Source/Types.h
 )
 
 add_library(${PROJECT_NAME}_lib SHARED
