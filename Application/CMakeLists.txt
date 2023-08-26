@@ -1,6 +1,11 @@
 set(APPLICATION_SOURCES
     Source/Application.cpp
+    Source/ObjLoader.h
     Source/Scene.h
+    Source/CellExporter.h
+    Source/CellExporter.cpp
+    Source/Recorder.h
+    Source/Recorder.cpp
 )
 
 add_executable(${PROJECT_NAME}
@@ -12,10 +17,12 @@ source_group(Application FILES ${APPLICATION_SOURCES})
 # FIXME, Replace by consuming public headers from Library
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/Library/Source)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/Library/ThirdParty/Eigen/include)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/Application/ThirdParty/ShapeOp/include)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/Application/ThirdParty/Assimp/include)
 target_include_directories(${PROJECT_NAME} PRIVATE ThirdParty/GDT/include)
 
 target_link_libraries(${PROJECT_NAME} LINK_PUBLIC ${PROJECT_NAME}_lib)
+target_link_libraries(${PROJECT_NAME} LINK_PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/ShapeOp/lib/$<CONFIG>/ShapeOp.0.1.0.lib")
 target_link_libraries(${PROJECT_NAME} LINK_PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Assimp/lib/Release/assimp.lib")
 target_link_libraries(${PROJECT_NAME} LINK_PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/GDT/lib/glfw3.lib")
 target_link_libraries(${PROJECT_NAME} LINK_PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/GDT/lib/$<CONFIG>/GDT.lib")

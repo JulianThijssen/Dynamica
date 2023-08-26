@@ -8,15 +8,15 @@
 class GLObject
 {
 public:
-    void setData(const FMatrix& q, int n, int dim, const std::vector<Vector3f>& normals, const std::vector<int>& indices)
+    void setData(const std::vector<Vector3f>& vertices, const std::vector<Vector3f>& normals, const std::vector<int>& indices)
     {
         glGenVertexArrays(1, &vao);
         glBindVertexArray(vao);
 
         glGenBuffers(1, &vbo);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER, n * dim * sizeof(float), q.data(), GL_STATIC_DRAW);
-        glVertexAttribPointer(0, dim, GL_FLOAT, GL_FALSE, 0, 0);
+        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vector3f), vertices.data(), GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
         glEnableVertexAttribArray(0);
 
         glGenBuffers(1, &nbo);
@@ -73,6 +73,20 @@ public:
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(int), indices.data(), GL_STATIC_DRAW);
     }
 
+    void initializeColDebug(int numVerts)
+    {
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
+
+        std::vector<Vector3f> vertices(numVerts);
+
+        glGenBuffers(1, &vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vector3f), vertices.data(), GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(0);
+    }
+
     GLuint vao;
     GLuint vbo;
     GLuint nbo;
@@ -84,4 +98,5 @@ class Scene
 public:
     GLObject obj;
     GLObject floor;
+    GLObject colDebug;
 };
