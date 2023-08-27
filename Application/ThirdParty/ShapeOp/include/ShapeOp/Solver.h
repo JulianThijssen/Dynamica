@@ -40,12 +40,16 @@ class SHAPEOP_API Solver {
   std::shared_ptr<Force> &getForce(int id);
   /** \brief Set the points.*/
   void setPoints(const Matrix3X &p);
+  /** \brief Set the velocities.*/
+  void setVelocities(const Matrix3X& v);
   /** \brief Set the timestep for the dynamics.*/
   void setTimeStep(Scalar timestep);
   /** \brief Set the velocity damping for the dynamics.*/
   void setDamping(Scalar damping);
   /** \brief Get the points.*/
   const Matrix3X &getPoints();
+  /** \brief Get the velocities.*/
+  const Matrix3X& getVelocities();
   /** \brief Initialize the ShapeOp linear system and the different parameters.
   \return true if successfull */
   bool initialize(bool dynamic = false, Scalar masses = 1.0, Scalar damping = 1.0, Scalar timestep = 1.0);
