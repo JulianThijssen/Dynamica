@@ -48,71 +48,74 @@ public:
         newtonRaphson(-20);
 
         // Objects
-        loadObject("Resources/IcosphereHigh.obj", cell_1);
-        loadObject("Resources/IcosphereHigh.obj", cell_2);
-
-        _recorder.addMeshObservation(&cell_1);
-        _recorder.addMeshObservation(&cell_2);
-
-        for (Vector3f& v : cell_1.vertices)
         {
-            v.x += 1.0;
+            Mesh c1;
+            loadObject("Resources/IcosphereHigh.obj", c1);
+            Mesh c2;
+            loadObject("Resources/IcosphereHigh.obj", c2);
+
+            for (Vector3f& v : c1.vertices)
+            {
+                v.x += 1.0;
+            }
+            for (Vector3f& v : c2.vertices)
+            {
+                v.x -= 1.2f;
+            }
+            storeVertices(c1, vertices);
+            storeVertices(c2, vertices);
+            storeNormals(c1, normals);
+            storeNormals(c2, normals);
+            storeIndices(c1, indices, 0);
+            storeIndices(c2, indices, c1.vertices.size());
+
+            scene.cells.push_back(c1);
+            scene.cells.push_back(c2);
         }
-        for (Vector3f& v : cell_2.vertices)
-        {
-            v.x -= 1.2f;
-        }
-        storeVertices(cell_1, vertices);
-        storeVertices(cell_2, vertices);
-        storeNormals(cell_1, normals);
-        storeNormals(cell_2, normals);
-        storeIndices(cell_1, indices, 0);
-        storeIndices(cell_2, indices, cell_1.vertices.size());
+        scene.storePositions();
+        solver.setPoints(scene.positions);
 
-        verticesToSimulation(vertices, p, s);
+        makeCellConstraint(scene.cells[0], solver, 0);
+        makeCellConstraint(scene.cells[1], solver, scene.cells[0].vertices.size());
 
-        s.setPoints(p);
-        makeCellConstraint(cell_1, s, 0);
-        makeCellConstraint(cell_2, s, cell_1.vertices.size());
+        forces.resize(scene.positions.cols());
 
-        forces.resize(p.cols());
-
-        computeNormals(cell_1);
-        computeNormals(cell_2);
+        computeNormals(scene.cells[0]);
+        computeNormals(scene.cells[1]);
 
         // Forces
         auto gravityForce = std::make_shared<ShapeOp::GravityForce>(ShapeOp::Vector3(0, -0.05, 0));
-        s.addForces(gravityForce);
+        solver.addForces(gravityForce);
 
-        vertexToForcesMap.resize(p.cols());
+        vertexToForcesMap.resize(scene.positions.cols());
 
-        for (int i = 0; i < p.cols(); i++)
+        for (int i = 0; i < scene.positions.cols(); i++)
         {
             auto vertexForce = std::make_shared<ShapeOp::VertexForce>(ShapeOp::Vector3(0, 0, 0), i);
 
-            int id = s.addForces(vertexForce);
+            int id = solver.addForces(vertexForce);
             vertexToForcesMap[i] = id;
         }
 
         userForce = ShapeOp::Vector3(0, 0, 0);
-        userForces.resize(p.cols());
-        for (int i = 0; i < p.cols(); i++)
+        userForces.resize(scene.positions.cols());
+        for (int i = 0; i < scene.positions.cols(); i++)
         {
             userForces[i] = std::make_shared<ShapeOp::VertexForce>(userForce, i);
 
-            s.addForces(userForces[i]);
+            solver.addForces(userForces[i]);
         }
 
         // Initialize simulation
-        s.initialize(true, 0.1f, 0.96, 1.0 / 120);
+        solver.initialize(true, 0.1f, 0.96, 1.0 / 120);
 
-        vels = s.getVelocities();
+        scene.velocities = solver.getVelocities();
 
         //simulation.init();
 
         scene.obj.setData(vertices, normals, indices);
         scene.floor.setFloorData();
-        scene.colDebug.initializeColDebug(cell_1.vertices.size());
+        scene.colDebug.initializeColDebug(scene.cells[0].vertices.size());
     }
     
     void update()
@@ -137,70 +140,70 @@ public:
             collisionDetection();
 
             ///
-            bool success = s.solve(10);
+            bool success = solver.solve(10);
             //std::cout << success << std::endl;
-            p = s.getPoints();
-            vels = s.getVelocities();
+            scene.positions = solver.getPoints();
+            scene.velocities = solver.getVelocities();
 
-            // Linearize data
-            std::vector<float> vertData(p.rows() * p.cols());
-            for (int i = 0; i < p.cols(); i++)
+            // Store current vertices back in prev vertices
+            for (int c = 0; c < scene.cells.size(); c++)
             {
-                for (int d = 0; d < p.rows(); d++)
+                Mesh& cell = scene.cells[c];
+                for (int i = 0; i < cell.vertices.size(); i++)
                 {
-                    vertData[i * 3 + d] = p(d, i);
+                    cell.prevVertices[i].set(cell.vertices[i]);
                 }
             }
-            ///
-            // Store current vertices back in prev vertices
-            for (int i = 0; i < cell_1.vertices.size(); i++)
-            {
-                cell_1.prevVertices[i].set(cell_1.vertices[i]);
-            }
-            for (int i = 0; i < cell_2.vertices.size(); i++)
-            {
-                cell_2.prevVertices[i].set(cell_2.vertices[i]);
-            }
+
             // Load vertex data back into mesh
-            for (int i = 0; i < cell_1.vertices.size(); i++)
+            int idx = 0;
+            for (Mesh& cell : scene.cells)
             {
-                cell_1.vertices[i].set(p(0, i), p(1, i), p(2, i));
-            }
-            int offset = cell_1.vertices.size();
-            for (int i = 0; i < cell_2.vertices.size(); i++)
-            {
-                cell_2.vertices[i].set(p(0, offset + i), p(1, offset + i), p(2, offset + i));
+                for (int i = 0; i < cell.vertices.size(); i++)
+                {
+                    cell.vertices[i].set(scene.positions(0, idx), scene.positions(1, idx), scene.positions(2, idx));
+                    idx++;
+                }
             }
 
-            computeNormals(cell_1);
-            computeNormals(cell_2);
+            // Linearize data
+            vertices.clear();
+            for (Mesh& cell : scene.cells)
+            {
+                storeVertices(cell, vertices);
+            }
 
-            for (int i = 0; i < cell_1.normals.size(); i++)
-                cell_1.faceNormals[i] += 3;
+            for (int i = 0; i < scene.cells.size(); i++)
+                computeNormals(scene.cells[i]);
+
+            for (int i = 0; i < scene.cells[0].normals.size(); i++)
+                scene.cells[0].faceNormals[i] += 3;
 
             // Compute vertex normals
-            std::vector<Vector3f> vertexNormals(cell_1.vertices.size() + cell_2.vertices.size());
-            for (int i = 0; i < cell_1.faces.size(); i++)
+            std::vector<Vector3f> vertexNormals;
+            for (int i = 0; i < scene.cells.size(); i++)
             {
-                const Face& face = cell_1.faces[i];
-                vertexNormals[face.i0] += cell_1.faceNormals[i];
-                vertexNormals[face.i1] += cell_1.faceNormals[i];
-                vertexNormals[face.i2] += cell_1.faceNormals[i];
+                Mesh& cell = scene.cells[i];
+                std::vector<Vector3f> cellVertexNormals(cell.vertices.size());
+
+                for (int f = 0; f < cell.faces.size(); f++)
+                {
+                    const Face& face = cell.faces[f];
+                    cellVertexNormals[face.i0] += cell.faceNormals[f];
+                    cellVertexNormals[face.i1] += cell.faceNormals[f];
+                    cellVertexNormals[face.i2] += cell.faceNormals[f];
+                }
+
+                vertexNormals.insert(vertexNormals.end(), cellVertexNormals.begin(), cellVertexNormals.end());
             }
-            for (int i = 0; i < cell_2.faces.size(); i++)
-            {
-                const Face& face = cell_2.faces[i];
-                vertexNormals[face.i0 + cell_1.vertices.size()] += cell_2.faceNormals[i];
-                vertexNormals[face.i1 + cell_1.vertices.size()] += cell_2.faceNormals[i];
-                vertexNormals[face.i2 + cell_1.vertices.size()] += cell_2.faceNormals[i];
-            }
+            
             for (Vector3f& vertexNormal : vertexNormals)
                 if (vertexNormal.x != 0 || vertexNormal.y != 0 || vertexNormal.z != 0)
                     vertexNormal.normalize();
 
             //CellExporter::writeMeshToFile("cell_1.csv", cell_1);
             //CellExporter::writeMeshToFile("cell_2.csv", cell_2);
-            _recorder.recordFrame();
+            _recorder.recordFrame(scene);
 
             shader.bind();
 
@@ -239,7 +242,7 @@ public:
             glLineWidth(1);
             glBindVertexArray(scene.obj.vao);
             glBindBuffer(GL_ARRAY_BUFFER, scene.obj.vbo);
-            glBufferData(GL_ARRAY_BUFFER, vertData.size() * sizeof(float), vertData.data(), GL_STATIC_DRAW);
+            glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vector3f), vertices.data(), GL_STATIC_DRAW);
             glBindBuffer(GL_ARRAY_BUFFER, scene.obj.nbo);
             glBufferData(GL_ARRAY_BUFFER, vertexNormals.size() * sizeof(Vector3f), vertexNormals.data(), GL_STATIC_DRAW);
             //glBufferData(GL_ARRAY_BUFFER, simulation.state.n * simulation.state.dim * sizeof(float), simulation.state.q.data(), GL_STATIC_DRAW);
@@ -284,9 +287,9 @@ public:
 
         /// Collision detection
         // Plane
-        for (int i = 0; i < p.cols(); i++)
+        for (int i = 0; i < scene.positions.cols(); i++)
         {
-            double y = s.getPoints()(1, i);
+            double y = solver.getPoints()(1, i);
 
             if (y < -3)
             {
@@ -295,9 +298,9 @@ public:
             }
         }
         // Sphere
-        for (int i = 0; i < p.cols(); i++)
+        for (int i = 0; i < scene.positions.cols(); i++)
         {
-            ShapeOp::Vector3 vs = s.getPoints().col(i);
+            ShapeOp::Vector3 vs = solver.getPoints().col(i);
             Vector3f vr(vs.x(), vs.y(), vs.z());
 
             if (vr.length() > 3)
@@ -305,12 +308,12 @@ public:
                 // Test setting the position of the vertex directly
                 // Project v back on sphere
                 Vector3f vProj = normalize(vr) * 2.99;
-                p(0, i) = vProj.x;
-                p(1, i) = vProj.y;
-                p(2, i) = vProj.z;
-                vels(0, i) = 0;
-                vels(1, i) = 0;
-                vels(2, i) = 0;
+                scene.positions(0, i) = vProj.x;
+                scene.positions(1, i) = vProj.y;
+                scene.positions(2, i) = vProj.z;
+                scene.velocities(0, i) = 0;
+                scene.velocities(1, i) = 0;
+                scene.velocities(2, i) = 0;
                 //debugPositions.push_back(v);
 
                 // Force procedure
@@ -345,22 +348,135 @@ public:
         debugPositions.clear();
         debugLines.clear();
 
-        for (int i = 0; i < cell_1.vertices.size(); i++)
+        cellCollision(scene.cells[0], scene.cells[1], 0);
+        cellCollision(scene.cells[1], scene.cells[0], scene.cells[0].vertices.size());
+
+        // Cell 2
+        //for (int i = 0; i < cell_2.vertices.size(); i++)
+        //{
+        //    Vector3f& v = cell_2.vertices[i];
+        //    bool inCell = vertexInCell(v, cell_1);
+        //    if (inCell)
+        //    {
+        //        Vector3f closestVertex = findClosestVertex(v, cell_1);
+
+        //        Vector3f pushDir = (closestVertex - v) * 1000;
+        //        forces[i + cell_1.vertices.size()] += pushDir;
+        //    }
+        //}
+
+        // Set forces in simulation
+        for (int i = 0; i < scene.positions.cols(); i++)
         {
-            Vector3f& v = cell_1.vertices[i];
+            ShapeOp::Vector3 sforce(forces[i].x, forces[i].y, forces[i].z);
+            dynamic_cast<ShapeOp::VertexForce*>(solver.getForce(vertexToForcesMap[i]).get())->setForce(sforce);
+        }
+
+        //
+        //volumeMin += 0.1f;
+        //volumeMax += 0.1f;
+        //for (int i = 0; i < volumeConstraintIds.size(); i++)
+        //{
+        //    dynamic_cast<ShapeOp::VolumeConstraint*>(s.getConstraint(volumeConstraintIds[i]).get())->setRangeMin(volumeMin);
+        //    dynamic_cast<ShapeOp::VolumeConstraint*>(s.getConstraint(volumeConstraintIds[i]).get())->setRangeMax(volumeMax);
+        //}
+        solver.setPoints(scene.positions);
+        solver.setVelocities(scene.velocities);
+    }
+
+    void cellCollision(Mesh& c1, Mesh& c2, int offset)
+    {
+        for (int i = 0; i < c1.vertices.size(); i++)
+        {
+            Vector3f& v = c1.vertices[i];
+
+            float t = 0;
+            bool inCell = vertexInCell(v, c2, t);
+
+            if (inCell)
+            {
+                Vector3f& pv = c1.prevVertices[i];
+                Vector3f vel = v - pv;
+
+                Vector3f closestPoint = findClosestPointOnMesh(v, c2);
+
+                scene.positions(0, i + offset) = closestPoint.x;
+                scene.positions(1, i + offset) = closestPoint.y;
+                scene.positions(2, i + offset) = closestPoint.z;
+                scene.velocities(0, i + offset) = 0;
+                scene.velocities(1, i + offset) = 0;
+                scene.velocities(2, i + offset) = 0;
+            }
+        }
+    }
+
+    void cellCollision2(Mesh& c1, Mesh& c2)
+    {
+        for (int i = 0; i < c1.vertices.size(); i++)
+        {
+            Vector3f& v = c1.vertices[i];
+
+            float t = 0;
+            bool inCell = vertexInCell(v, c2, t);
+
+            if (inCell)
+            {
+                Vector3f& pv = c1.prevVertices[i];
+                Vector3f vel = v - pv;
+
+                Vector3f closestPoint = findClosestPointOnMesh(v, c2);
+
+                scene.positions(0, i) = closestPoint.x;
+                scene.positions(1, i) = closestPoint.y;
+                scene.positions(2, i) = closestPoint.z;
+                scene.velocities(0, i) = 0;
+                scene.velocities(1, i) = 0;
+                scene.velocities(2, i) = 0;
+            }
+        }
+
+        for (int i = 0; i < c2.vertices.size(); i++)
+        {
+            Vector3f& v = c1.vertices[i];
+
+            float t = 0;
+            bool inCell = vertexInCell(v, c2, t);
+
+            if (inCell)
+            {
+                Vector3f& pv = c1.prevVertices[i];
+                Vector3f vel = v - pv;
+
+                Vector3f closestPoint = findClosestPointOnMesh(v, c2);
+
+                scene.positions(0, i) = closestPoint.x;
+                scene.positions(1, i) = closestPoint.y;
+                scene.positions(2, i) = closestPoint.z;
+                scene.velocities(0, i) = 0;
+                scene.velocities(1, i) = 0;
+                scene.velocities(2, i) = 0;
+            }
+        }
+    }
+
+    void cellCollisionFull(Mesh& c1, Mesh& c2)
+    {
+        for (int i = 0; i < c1.vertices.size(); i++)
+        {
+            Vector3f& v = c1.vertices[i];
             //ShapeOp::ClosenessConstraint* c = dynamic_cast<ShapeOp::ClosenessConstraint*>(s.getConstraint(cell_1.collisionConstraintIds[i]).get());
             //c->setWeight(1.0f);
 
             //debugPositions[i].set(100, 100, 100);
 
             float t = 0;
-            bool inCell = vertexInCell(v, cell_2, t);
+            bool inCell = vertexInCell(v, c2, t);
 
 
             if (inCell)
             {
                 //debugPositions[i].set(v + Vector3f(0, 1, 0) * t);
-                Vector3f& pv = cell_1.prevVertices[i];
+                Vector3f& pv = c1.prevVertices[i];
                 Vector3f vel = v - pv;
                 //// Determine intersection point
                 //{
@@ -402,17 +518,17 @@ public:
                 //    //forces[i] += pushDir;
                 //}
 
-                Vector3f closestPoint = findClosestPointOnMesh(v, cell_2);
+                Vector3f closestPoint = findClosestPointOnMesh(v, c2);
                 //float dist = (closestVertex - v).length();
                 //Vector3f pushDir = (closestVertex - v) * 100000 * dist;
                 //forces[i] += pushDir;
 
-                p(0, i) = closestPoint.x;
-                p(1, i) = closestPoint.y;
-                p(2, i) = closestPoint.z;
-                vels(0, i) = 0;
-                vels(1, i) = 0;
-                vels(2, i) = 0;
+                scene.positions(0, i) = closestPoint.x;
+                scene.positions(1, i) = closestPoint.y;
+                scene.positions(2, i) = closestPoint.z;
+                scene.velocities(0, i) = 0;
+                scene.velocities(1, i) = 0;
+                scene.velocities(2, i) = 0;
 
                 //std::cout << "In Cell " << dist << std::endl;
                 //c->setPosition(ShapeOp::Vector3(closestVertex.x, closestVertex.y, closestVertex.z));
@@ -421,38 +537,6 @@ public:
                 //debugPositions[i].set(closestVertex);
             }
         }
-
-        // Cell 2
-        //for (int i = 0; i < cell_2.vertices.size(); i++)
-        //{
-        //    Vector3f& v = cell_2.vertices[i];
-        //    bool inCell = vertexInCell(v, cell_1);
-        //    if (inCell)
-        //    {
-        //        Vector3f closestVertex = findClosestVertex(v, cell_1);
-
-        //        Vector3f pushDir = (closestVertex - v) * 1000;
-        //        forces[i + cell_1.vertices.size()] += pushDir;
-        //    }
-        //}
-
-        // Set forces in simulation
-        for (int i = 0; i < p.cols(); i++)
-        {
-            ShapeOp::Vector3 sforce(forces[i].x, forces[i].y, forces[i].z);
-            dynamic_cast<ShapeOp::VertexForce*>(s.getForce(vertexToForcesMap[i]).get())->setForce(sforce);
-        }
-
-        //
-        //volumeMin += 0.1f;
-        //volumeMax += 0.1f;
-        //for (int i = 0; i < volumeConstraintIds.size(); i++)
-        //{
-        //    dynamic_cast<ShapeOp::VolumeConstraint*>(s.getConstraint(volumeConstraintIds[i]).get())->setRangeMin(volumeMin);
-        //    dynamic_cast<ShapeOp::VolumeConstraint*>(s.getConstraint(volumeConstraintIds[i]).get())->setRangeMax(volumeMax);
-        //}
-        s.setPoints(p);
-        s.setVelocities(vels);
     }
 
     void onMouseMove(float x, float y) override
@@ -497,16 +581,11 @@ private:
 
     //Simulation simulation;
 
-    ShapeOp::Solver s;
-    ShapeOp::Matrix3X p;
-    ShapeOp::Matrix3X vels;
+    ShapeOp::Solver solver;
     ShapeOp::Scalar weight = 1.0;
 
     std::vector<int> vertexToForcesMap;
     std::vector<std::shared_ptr<ShapeOp::VertexForce>> userForces;
-
-    Mesh cell_1;
-    Mesh cell_2;
 
     std::vector<Vector3f> vertices;
     std::vector<Vector3f> normals;

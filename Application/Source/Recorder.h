@@ -17,16 +17,16 @@ public:
         _recording = true;
     }
 
-    void recordFrame()
+    void recordFrame(Scene& scene)
     {
         if (!_recording)
             return;
 
-        for (int i = 0; i < _meshes.size(); i++)
+        for (int i = 0; i < scene.cells.size(); i++)
         {
-            Mesh* mesh = _meshes[i];
+            Mesh& mesh = scene.cells[i];
             std::string filePath = "Frames/cell_" + std::to_string(i) + "_" + std::to_string(_frame) + ".csv";
-            CellExporter::writeMeshToFile(filePath, *mesh);
+            CellExporter::writeMeshToFile(filePath, mesh);
         }
         _frame++;
     }

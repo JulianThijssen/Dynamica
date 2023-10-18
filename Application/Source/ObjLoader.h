@@ -6,26 +6,10 @@
 
 #include <string>
 
+#include "Mesh.h"
+
 #include "ShapeOp/Solver.h"
 #include "ShapeOp/Constraint.h"
-
-struct Face
-{
-    int i0, i1, i2;
-};
-
-class Mesh
-{
-public:
-    std::vector<Vector3f> vertices;
-    std::vector<Vector3f> prevVertices;
-    std::vector<Vector3f> normals;
-    //std::vector<int> indices;
-    std::vector<Face> faces;
-    std::vector<Vector3f> faceNormals;
-    std::vector<int> volumeConstraintIds;
-    std::vector<int> collisionConstraintIds;
-};
 
 bool loadObject(std::string filePath, Mesh& mesh)
 {
@@ -111,24 +95,7 @@ void storeIndices(const Mesh& mesh, std::vector<int>& indices, int offset)
     }
 }
 
-void verticesToSimulation(const std::vector<Vector3f>& vertices, ShapeOp::Matrix3X& p, ShapeOp::Solver& s)
-{
-    int previousSize = p.cols();
-
-    if (p.cols() > 0)
-        p.conservativeResize(3, p.cols() + vertices.size());
-    else
-        p.resize(3, vertices.size());
-
-    for (int j = 0; j < vertices.size(); j++)
-    {
-        p(0, previousSize + j) = vertices[j].x;
-        p(1, previousSize + j) = vertices[j].y;
-        p(2, previousSize + j) = vertices[j].z;
-    }
-}
-
-void makeCellConstraint(Mesh& mesh, ShapeOp::Solver& s, int offset)
+void makeCellConstraint(Mesh& mesh, ShapeOp::Solver& solver, int offset)
 {
     // Store edges in constraints
     mesh.volumeConstraintIds.resize(mesh.faces.size());
@@ -140,13 +107,13 @@ void makeCellConstraint(Mesh& mesh, ShapeOp::Solver& s, int offset)
 
         {
             std::vector<int> id_vector = { offset + face.i0, offset + face.i1, offset + face.i2, offset + (int) mesh.vertices.size() - 1 };
-            auto c = std::make_shared<ShapeOp::VolumeConstraint>(id_vector, 100, s.getPoints(), 0.95, 1.05);
-            int volConstraintId = s.addConstraint(c);
+            auto c = std::make_shared<ShapeOp::VolumeConstraint>(id_vector, 100, solver.getPoints(), 0.95, 1.05);
+            int volConstraintId = solver.addConstraint(c);
             
             mesh.volumeConstraintIds[j] = volConstraintId;
 
-            auto sc = std::make_shared<ShapeOp::TetrahedronStrainConstraint>(id_vector, 200, s.getPoints(), 0.95, 1.05);
-            s.addConstraint(sc);
+            auto sc = std::make_shared<ShapeOp::TetrahedronStrainConstraint>(id_vector, 200, solver.getPoints(), 0.95, 1.05);
+            solver.addConstraint(sc);
 
             //c->setRangeMin(0.95);
             //c->setRangeMax(1.05);

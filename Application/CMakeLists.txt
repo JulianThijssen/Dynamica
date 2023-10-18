@@ -2,6 +2,7 @@ set(APPLICATION_SOURCES
     Source/Application.cpp
     Source/ObjLoader.h
     Source/Scene.h
+    Source/Mesh.h
     Source/CellExporter.h
     Source/CellExporter.cpp
     Source/Recorder.h

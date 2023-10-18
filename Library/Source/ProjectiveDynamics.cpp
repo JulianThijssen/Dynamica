@@ -287,7 +287,7 @@ FMatrix Simulation::collisionDetection(const FMatrix& q)
 
     FVector3 vn, vt, vel;
 
-    float friction = 0.98f;
+    float friction = 0.88f;
     float restitution = 0.4f;
 
     float floor = -1.5f;

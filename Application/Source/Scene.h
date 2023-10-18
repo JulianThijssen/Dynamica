@@ -5,6 +5,10 @@
 
 #include <vector>
 
+#include "Mesh.h"
+
+#include "ShapeOp/Solver.h"
+
 class GLObject
 {
 public:
@@ -96,7 +100,46 @@ public:
 class Scene
 {
 public:
+    void storePositions()
+    {
+        int numVertices = 0;
+        for (const Mesh& cell : cells)
+        {
+            numVertices += cell.vertices.size();
+        }
+
+        std::vector<Vector3f> linearPositions(numVertices);
+        int i = 0;
+        for (const Mesh& cell : cells)
+        {
+            for (int v = 0; v < cell.vertices.size(); v++)
+            {
+                linearPositions[i++] = cell.vertices[v];
+            }
+        }
+
+        int previousSize = positions.cols();
+
+        if (positions.cols() > 0)
+            positions.conservativeResize(3, linearPositions.size());
+        else
+            positions.resize(3, linearPositions.size());
+
+        for (int j = 0; j < linearPositions.size(); j++)
+        {
+            positions(0, j) = linearPositions[j].x;
+            positions(1, j) = linearPositions[j].y;
+            positions(2, j) = linearPositions[j].z;
+        }
+    }
+
+public:
     GLObject obj;
     GLObject floor;
     GLObject colDebug;
+
+    std::vector<Mesh> cells;
+
+    ShapeOp::Matrix3X positions;
+    ShapeOp::Matrix3X velocities;
 };
